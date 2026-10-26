@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="zh"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<link rel="icon" href="data:,"><title>AI 同声翻译 · Live Translator</title>
+<link rel="icon" href="icon-192.png"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-192.png"><meta name="theme-color" content="#0f1115"><meta name="apple-mobile-web-app-capable" content="yes"><title>AI 同声翻译 · Live Translator</title>
 <style>
 :root{--bg:#0f1115;--card:#1a1d24;--fg:#eef0f4;--mut:#8a90a0;--acc:#3b82f6;--me:#1e3a5f;--them:#2a2f3a}
 *{box-sizing:border-box}body{margin:0;font:16px/1.45 -apple-system,system-ui,"PingFang SC",sans-serif;background:var(--bg);color:var(--fg);height:100dvh;display:flex;flex-direction:column}
 header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #222}
-header b{flex:1;font-size:17px}.pill{font-size:12px;padding:3px 8px;border-radius:99px;background:#333;color:var(--mut)}.pill.ok{background:#14532d;color:#86efac}
+header b{flex:1;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pill{font-size:12px;padding:3px 8px;border-radius:99px;background:#333;color:var(--mut)}.pill.ok{background:#14532d;color:#86efac}
 button{font:inherit;color:inherit;background:var(--card);border:1px solid #333;border-radius:10px;padding:8px 12px;cursor:pointer}
 #log{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
 .msg{max-width:88%;padding:10px 12px;border-radius:14px;background:var(--them)}.msg.me{align-self:flex-end;background:var(--me)}
@@ -14,20 +14,20 @@ button{font:inherit;color:inherit;background:var(--card);border:1px solid #333;b
 #share{padding:12px;text-align:center;background:var(--card);margin:12px;border-radius:14px}#share img,#share canvas{background:#fff;padding:8px;border-radius:8px}
 #share .u{font-size:12px;color:var(--mut);word-break:break-all}
 footer{padding:12px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px solid #222;display:flex;gap:10px;align-items:center}
-#mic{flex:1;padding:16px;font-size:18px;border-radius:14px;background:var(--acc);border:0;color:#fff}#mic.on{background:#dc2626}
+#mode{padding:16px 10px;border-radius:14px;font-size:14px;min-width:84px}#mic{flex:1;user-select:none;-webkit-user-select:none;touch-action:none;-webkit-touch-callout:none;padding:16px;font-size:18px;border-radius:14px;background:var(--acc);border:0;color:#fff}#mic.on{background:#dc2626}
 #cfg{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center}#cfg>div{background:var(--card);padding:18px;border-radius:14px;width:min(92vw,420px)}
 input,select{width:100%;font:inherit;padding:8px;border-radius:8px;border:1px solid #444;background:#111;color:var(--fg);margin:6px 0 12px}
 textarea{width:100%;font:inherit;font-size:14px;padding:8px;border-radius:8px;border:1px solid #444;background:#111;color:var(--fg);margin:6px 0 12px}.msg.err .t{color:#f87171;font-size:15px}.lat{font-size:11px;color:var(--mut);text-align:right}.small{font-size:12px;color:var(--mut)}
 </style></head><body>
 <header><b data-i="title"></b><span id="st" class="pill"></span><button id="langBtn"></button><button id="expBtn" title="export">⤓</button><button id="cfgBtn">⚙︎</button></header>
-<div id="share"><div data-i="scan" style="margin-bottom:8px"></div><div id="qr"></div><div class="u" id="url"></div><button id="copy" style="margin-top:8px" data-i="copy"></button></div>
+<div id="share"><div data-i="scan" style="margin-bottom:8px"></div><div id="qr"></div><div class="u" id="url"></div><button id="copy" style="margin-top:8px" data-i="copy"></button> <button id="newRoom" style="margin-top:8px" data-i="newRoom"></button></div>
 <div id="log"></div>
-<footer><button id="mic"></button></footer>
+<footer><button id="mode"></button><button id="mic"></button></footer>
 <div id="cfg"><div>
 <b data-i="settings"></b>
 <div class="small" data-i="engineHelp"></div>
 <label class="small">OpenAI API Key</label><input id="key" type="password" placeholder="sk-... (optional)">
-<label class="small" data-i="gloss"></label><textarea id="gl" rows="4" placeholder="交期=lead time
+<label class="small" data-i="gloss"></label><select id="preset"><option value="" data-i="presetPick"></option><option value="ces" data-i="pCes"></option><option value="factory" data-i="pFactory"></option><option value="daily" data-i="pDaily"></option></select><textarea id="gl" rows="4" placeholder="交期=lead time
 样品=sample
 报价单=quotation"></textarea>
 <label class="small" data-i="voice"></label><label style="display:flex;gap:8px;align-items:center"><input id="tts" type="checkbox" style="width:auto;margin:0"><span data-i="ttsLabel"></span></label>
@@ -40,17 +40,21 @@ const $=s=>document.querySelector(s), LS=localStorage;
 const room=new URLSearchParams(location.search).get('room'); const isHost=!room;
 let lang=LS.lang||(isHost?'zh':(navigator.language||'en').startsWith('zh')?'zh':'en');
 const other=l=>l==='zh'?'en':'zh', BCP={zh:'zh-CN',en:'en-US'};
-const T={zh:{title:'AI 同声翻译',scan:'请对方扫码加入（无需安装）',copy:'复制链接',settings:'设置',engineHelp:'默认用免费翻译（Google→MyMemory）。填入你自己的 OpenAI Key 质量更好，只存在本机浏览器。',voice:'语音',ttsLabel:'朗读对方的译文',save:'保存',close:'关闭',start:'🎤 点击开始说中文',stop:'⏹ 停止',lang:'我说 中文',wait:'等待对方',conn:'已连接',solo:'单机模式',err:'连接失败',nosr:'此浏览器不支持语音识别，请用 Chrome / Safari',copied:'已复制',gloss:'术语表（每行 中文=English，双向生效）',nokey:'链接缺少加密密钥，请重新扫码',tfail:'翻译失败',lat:'延迟'},
- en:{title:'AI Live Translator',scan:'Ask the other person to scan (no install)',copy:'Copy link',settings:'Settings',engineHelp:'Uses free translation by default (Google→MyMemory). Paste your own OpenAI key for better quality; stored only in this browser.',voice:'Voice',ttsLabel:"Speak the other person's translation",save:'Save',close:'Close',start:'🎤 Tap to speak English',stop:'⏹ Stop',lang:'I speak EN',wait:'Waiting for peer',conn:'Connected',solo:'Solo mode',err:'Connection failed',nosr:'Speech recognition unsupported; use Chrome / Safari',copied:'Copied',gloss:'Glossary (one per line: 中文=English, both directions)',nokey:'Link is missing its encryption key; rescan the QR code',tfail:'Translation failed',lat:'latency'}};
+const T={zh:{title:'AI 同声翻译',scan:'请对方扫码加入（无需安装）',copy:'复制链接',settings:'设置',engineHelp:'默认用免费翻译（Google→MyMemory）。填入你自己的 OpenAI Key 质量更好，只存在本机浏览器。',voice:'语音',ttsLabel:'朗读对方的译文',save:'保存',close:'关闭',start:'🎤 点击开始说中文',stop:'⏹ 停止',lang:'我说 中文',wait:'等待对方',conn:'已连接',solo:'单机模式',err:'连接失败',nosr:'此浏览器不支持语音识别，请用 Chrome / Safari',copied:'已复制',gloss:'术语表（每行 中文=English，双向生效）',nokey:'链接缺少加密密钥，请重新扫码',tfail:'翻译失败',lat:'延迟',newRoom:'新房间',presetPick:'＋ 添加预设术语…',pCes:'展会 / CES',pFactory:'工厂审核',pDaily:'日常',auto:'自动',ptt:'按住说',hold:'🎤 按住说中文'},
+ en:{title:'AI Live Translator',scan:'Ask the other person to scan (no install)',copy:'Copy link',settings:'Settings',engineHelp:'Uses free translation by default (Google→MyMemory). Paste your own OpenAI key for better quality; stored only in this browser.',voice:'Voice',ttsLabel:"Speak the other person's translation",save:'Save',close:'Close',start:'🎤 Tap to speak English',stop:'⏹ Stop',lang:'I speak EN',wait:'Waiting for peer',conn:'Connected',solo:'Solo mode',err:'Connection failed',nosr:'Speech recognition unsupported; use Chrome / Safari',copied:'Copied',gloss:'Glossary (one per line: 中文=English, both directions)',nokey:'Link is missing its encryption key; rescan the QR code',tfail:'Translation failed',lat:'latency',newRoom:'New room',presetPick:'+ Add preset terms…',pCes:'Trade show / CES',pFactory:'Factory audit',pDaily:'Everyday',auto:'Auto',ptt:'Hold',hold:'🎤 Hold to speak English'}};
 const t=k=>T[lang][k]; let status='wait';
 function render(){document.documentElement.lang=lang;document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));
- $('#langBtn').textContent=t('lang')+' ⇄';$('#mic').textContent=listening?t('stop'):t('start');$('#mic').classList.toggle('on',listening);
+ $('#langBtn').textContent=t('lang')+' ⇄';$('#mic').textContent=listening?t('stop'):(LS.mode==='ptt'?t('hold'):t('start'));$('#mode').textContent=(LS.mode==='ptt'?'✋ ':'🔁 ')+t(LS.mode==='ptt'?'ptt':'auto');$('#mic').classList.toggle('on',listening);
  $('#st').textContent=t(status);$('#st').title=status;$('#st').className='pill'+(status==='conn'?' ok':'');}
 $('#langBtn').onclick=()=>{lang=other(lang);LS.lang=lang;if(listening){stopRec();startRec()}render()};
 // settings
 $('#cfgBtn').onclick=()=>{$('#gl').value=LS.gloss||'';$('#key').value=LS.okey||'';$('#tts').checked=LS.tts!=='0';$('#cfg').style.display='flex'};
 $('#close').onclick=()=>$('#cfg').style.display='none';
 $('#save').onclick=()=>{LS.gloss=$('#gl').value;cache.clear();LS.okey=$('#key').value.trim();LS.tts=$('#tts').checked?'1':'0';$('#cfg').style.display='none'};
+const PRESETS={ces:'展位=booth\n展会=trade show\n参展商=exhibitor\n名片=business card\n样品=sample\n起订量=MOQ\n经销商=distributor\n代理商=agent\n报价=quote\n合作=partnership',
+ factory:'交期=lead time\n起订量=MOQ\n良率=yield rate\n产能=production capacity\n质检=quality inspection\n来料检验=incoming inspection\n生产线=production line\n不良品=defective products\n整改=corrective action\n验厂=factory audit',
+ daily:'洗手间=restroom\n地铁=subway\n结账=check, please\n打包=to go\n多少钱=how much'};
+$('#preset').onchange=e=>{const v=PRESETS[e.target.value];if(v){const cur=$('#gl').value.trim().split('\n').filter(Boolean);for(const l of v.split('\n'))if(!cur.some(c=>c.split('=')[0].trim()===l.split('=')[0]))cur.push(l);$('#gl').value=cur.join('\n')}e.target.value=''};
 // glossary: lines "中文=English"; applied both directions
 function gloss(from){return (LS.gloss||'').split('\n').map(l=>l.split('=').map(x=>x.trim())).filter(x=>x.length==2&&x[0]&&x[1]).map(([zh,en])=>from==='zh'?[zh,en]:[en,zh])}
 function applyGloss(text,from){for(const [a,b] of gloss(from).sort((x,y)=>y[0].length-x[0].length)){text=from==='en'?text.replace(new RegExp('\\b'+a.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','gi'),b):text.split(a).join(b)}return text}
@@ -78,11 +82,11 @@ let speaking=false;
 function speak(text,l){if(LS.tts==='0'||!window.speechSynthesis)return;const u=new SpeechSynthesisUtterance(text);u.lang=BCP[l];
  u.onstart=()=>{speaking=true;if(listening)try{rec.abort()}catch(e){}};u.onend=u.onerror=()=>{speaking=false;if(listening)try{rec.start()}catch(e){}};speechSynthesis.speak(u);}
 // sync: WebRTC (PeerJS, DTLS-encrypted) when it connects, else ntfy.sh relay with AES-GCM end-to-end encryption (key only in URL #fragment, never sent to any server)
-const me=Math.random().toString(36).slice(2,10);const roomId=room||('aitr-'+Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8));
+const me=Math.random().toString(36).slice(2,10);const roomId=room||(LS.room=LS.room||('aitr-'+Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8)));
 const b64u={enc:u=>btoa(String.fromCharCode(...new Uint8Array(u))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),dec:s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))};
-let keyStr=isHost?null:new URLSearchParams(location.hash.slice(1)).get('k'),key=null;
-const keyReady=(async()=>{if(isHost){key=await crypto.subtle.generateKey({name:'AES-GCM',length:128},true,['encrypt','decrypt']);keyStr=b64u.enc(await crypto.subtle.exportKey('raw',key))}
- else if(keyStr)key=await crypto.subtle.importKey('raw',b64u.dec(keyStr),'AES-GCM',false,['encrypt','decrypt'])})();
+let keyStr=isHost?LS.rkey:new URLSearchParams(location.hash.slice(1)).get('k'),key=null;
+const keyReady=(async()=>{if(isHost&&!keyStr){const k=await crypto.subtle.generateKey({name:'AES-GCM',length:128},true,['encrypt','decrypt']);keyStr=LS.rkey=b64u.enc(await crypto.subtle.exportKey('raw',k))}
+ if(keyStr)key=await crypto.subtle.importKey('raw',b64u.dec(keyStr),'AES-GCM',false,['encrypt','decrypt'])})();
 async function seal(o){const iv=crypto.getRandomValues(new Uint8Array(12));return JSON.stringify({iv:b64u.enc(iv),c:b64u.enc(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(o))))})}
 async function open_(s){const o=JSON.parse(s);return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64u.dec(o.iv)},key,b64u.dec(o.c))))}
 let conn=null,relayPeer=false,lastRelayInterim=0,clockOff=0;const seen=new Set();
@@ -103,10 +107,14 @@ keyReady.then(()=>{if(!key){status='nokey';render();return}
  es.onmessage=async e=>{try{const d=JSON.parse(e.data);if(d.event!=='message')return;const m=await open_(d.message);if(m.from===me)return;onData(m)}catch(x){}};
  if(isHost){const url=location.origin+location.pathname+'?room='+roomId+'#k='+keyStr;$('#url').textContent=url;const q=qrcode(0,'M');q.addData(url);q.make();$('#qr').innerHTML=q.createImgTag(4,8);$('#copy').onclick=()=>{navigator.clipboard?.writeText(url);$('#copy').textContent=t('copied')}}});
 function bind(c){conn=c;c.on('open',()=>{setConn();if(!isHost)c.send({type:'hello',t1:Date.now()})});c.on('data',onData);c.on('close',()=>{if(!relayPeer){status=isHost?'wait':'err';render()}})}
-let peer;
-if(window.Peer){peer=isHost?new Peer(roomId):new Peer();
- peer.on('open',()=>{if(!isHost)bind(peer.connect(room,{reliable:true}))});
- peer.on('connection',c=>{if(rtcOpen())conn.close();bind(c)});peer.on('error',e=>console.warn('peer',e.type));}
+let peer,peerTries=0;
+function makePeer(){if(!window.Peer)return;peer=isHost?new Peer(roomId):new Peer();
+ peer.on('open',()=>{peerTries=0;if(!isHost)bind(peer.connect(room,{reliable:true}))});
+ peer.on('connection',c=>{if(rtcOpen())conn.close();bind(c)});
+ peer.on('error',e=>{console.warn('peer',e.type);if(e.type==='unavailable-id'&&peerTries++<5){peer.destroy();setTimeout(makePeer,4000)}});}
+makePeer();
+if(isHost){$('#st').style.cursor='pointer';$('#st').onclick=()=>{const sh=$('#share');sh.style.display=sh.style.display==='none'?'':'none'}}
+$('#newRoom').onclick=()=>{delete LS.room;delete LS.rkey;location.reload()};
 // export conversation as txt
 $('#expBtn').onclick=()=>{const lines=Object.values(bubbles).filter(b=>!b.classList.contains('interim')).map(b=>`[${b.dataset.when}] ${b.who==='me'?'Me':'Them'}: ${b.querySelector('.o').textContent}\n    → ${b.querySelector('.t').textContent}`);
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/plain'}));a.download='conversation-'+new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')+'.txt';document.body.appendChild(a);a.click();a.remove()};
@@ -117,8 +125,16 @@ function startRec(){if(!SR){alert(t('nosr'));return}rec=new SR();rec.lang=BCP[la
  rec.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i],txt=r[0].transcript.trim();if(!txt)continue;const id=(isHost?'h':'g')+seg;
   if(r.isFinal){seg++;clearTimeout(iTimer);const t0=Date.now();show(id,'me',txt,'',false);translate(txt,from,to).then(tr=>{show(id,'me',txt,tr,false,{lat:Date.now()-t0});send({type:'final',id,orig:txt,trans:tr,to,t0});if(!rtcOpen()&&!relayPeer)speak(tr,to)},e=>{show(id,'me',txt,'',false,{err:e.message});send({type:'final',id,orig:txt,trans:'',err:e.message,to,t0})})}
   else{show(id,'me',txt,'',true);send({type:'interim',id,orig:txt,trans:''});clearTimeout(iTimer);iTimer=setTimeout(()=>translate(txt,from,to,1).then(tr=>{if(bubbles[id]?.classList.contains('interim')){show(id,'me',txt,tr,true);send({type:'interim',id,orig:txt,trans:tr})}}).catch(()=>{}),400)}}};
- rec.onend=()=>{if(listening&&!speaking)try{rec.start()}catch(e){}};rec.start();listening=true;render();}
-function stopRec(){listening=false;try{rec.stop()}catch(e){}render()}
-$('#mic').onclick=()=>listening?stopRec():startRec();
+ rec.onend=()=>{if(listening&&!speaking)try{rec.start()}catch(e){}};rec.start();listening=true;wake(true);render();}
+function stopRec(){listening=false;wake(false);try{rec.stop()}catch(e){}render()}
+$('#mode').onclick=()=>{if(listening)stopRec();LS.mode=LS.mode==='ptt'?'auto':'ptt';render()};
+$('#mic').onclick=()=>{if(LS.mode!=='ptt')listening?stopRec():startRec()};
+$('#mic').onpointerdown=e=>{if(LS.mode==='ptt'){e.preventDefault();$('#mic').setPointerCapture?.(e.pointerId);if(!listening)startRec()}};
+$('#mic').onpointerup=$('#mic').onpointercancel=()=>{if(LS.mode==='ptt'&&listening)setTimeout(stopRec,300)};
+$('#mic').oncontextmenu=e=>e.preventDefault();
+// keep screen awake while listening
+let wl=null;async function wake(on){try{if(on&&!wl&&navigator.wakeLock){wl=await navigator.wakeLock.request('screen');wl.onrelease=()=>wl=null}else if(!on&&wl){await wl.release();wl=null}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&listening)wake(true)});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 render();
 </script></body></html>
