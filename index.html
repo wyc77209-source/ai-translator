@@ -17,9 +17,9 @@ footer{padding:12px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px
 #mic{flex:1;padding:16px;font-size:18px;border-radius:14px;background:var(--acc);border:0;color:#fff}#mic.on{background:#dc2626}
 #cfg{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center}#cfg>div{background:var(--card);padding:18px;border-radius:14px;width:min(92vw,420px)}
 input,select{width:100%;font:inherit;padding:8px;border-radius:8px;border:1px solid #444;background:#111;color:var(--fg);margin:6px 0 12px}
-.small{font-size:12px;color:var(--mut)}
+textarea{width:100%;font:inherit;font-size:14px;padding:8px;border-radius:8px;border:1px solid #444;background:#111;color:var(--fg);margin:6px 0 12px}.msg.err .t{color:#f87171;font-size:15px}.lat{font-size:11px;color:var(--mut);text-align:right}.small{font-size:12px;color:var(--mut)}
 </style></head><body>
-<header><b data-i="title"></b><span id="st" class="pill"></span><button id="langBtn"></button><button id="cfgBtn">⚙︎</button></header>
+<header><b data-i="title"></b><span id="st" class="pill"></span><button id="langBtn"></button><button id="expBtn" title="export">⤓</button><button id="cfgBtn">⚙︎</button></header>
 <div id="share"><div data-i="scan" style="margin-bottom:8px"></div><div id="qr"></div><div class="u" id="url"></div><button id="copy" style="margin-top:8px" data-i="copy"></button></div>
 <div id="log"></div>
 <footer><button id="mic"></button></footer>
@@ -27,6 +27,9 @@ input,select{width:100%;font:inherit;padding:8px;border-radius:8px;border:1px so
 <b data-i="settings"></b>
 <div class="small" data-i="engineHelp"></div>
 <label class="small">OpenAI API Key</label><input id="key" type="password" placeholder="sk-... (optional)">
+<label class="small" data-i="gloss"></label><textarea id="gl" rows="4" placeholder="交期=lead time
+样品=sample
+报价单=quotation"></textarea>
 <label class="small" data-i="voice"></label><label style="display:flex;gap:8px;align-items:center"><input id="tts" type="checkbox" style="width:auto;margin:0"><span data-i="ttsLabel"></span></label>
 <div style="display:flex;gap:8px;margin-top:14px"><button id="save" data-i="save"></button><button id="close" data-i="close"></button></div>
 </div></div>
@@ -37,61 +40,83 @@ const $=s=>document.querySelector(s), LS=localStorage;
 const room=new URLSearchParams(location.search).get('room'); const isHost=!room;
 let lang=LS.lang||(isHost?'zh':(navigator.language||'en').startsWith('zh')?'zh':'en');
 const other=l=>l==='zh'?'en':'zh', BCP={zh:'zh-CN',en:'en-US'};
-const T={zh:{title:'AI 同声翻译',scan:'请对方扫码加入（无需安装）',copy:'复制链接',settings:'设置',engineHelp:'默认用免费翻译（Google→MyMemory）。填入你自己的 OpenAI Key 质量更好，只存在本机浏览器。',voice:'语音',ttsLabel:'朗读对方的译文',save:'保存',close:'关闭',start:'🎤 点击开始说中文',stop:'⏹ 停止',lang:'我说 中文',wait:'等待对方',conn:'已连接',solo:'单机模式',err:'连接失败',nosr:'此浏览器不支持语音识别，请用 Chrome / Safari',copied:'已复制'},
- en:{title:'AI Live Translator',scan:'Ask the other person to scan (no install)',copy:'Copy link',settings:'Settings',engineHelp:'Uses free translation by default (Google→MyMemory). Paste your own OpenAI key for better quality; stored only in this browser.',voice:'Voice',ttsLabel:"Speak the other person's translation",save:'Save',close:'Close',start:'🎤 Tap to speak English',stop:'⏹ Stop',lang:'I speak EN',wait:'Waiting for peer',conn:'Connected',solo:'Solo mode',err:'Connection failed',nosr:'Speech recognition unsupported; use Chrome / Safari',copied:'Copied'}};
+const T={zh:{title:'AI 同声翻译',scan:'请对方扫码加入（无需安装）',copy:'复制链接',settings:'设置',engineHelp:'默认用免费翻译（Google→MyMemory）。填入你自己的 OpenAI Key 质量更好，只存在本机浏览器。',voice:'语音',ttsLabel:'朗读对方的译文',save:'保存',close:'关闭',start:'🎤 点击开始说中文',stop:'⏹ 停止',lang:'我说 中文',wait:'等待对方',conn:'已连接',solo:'单机模式',err:'连接失败',nosr:'此浏览器不支持语音识别，请用 Chrome / Safari',copied:'已复制',gloss:'术语表（每行 中文=English，双向生效）',nokey:'链接缺少加密密钥，请重新扫码',tfail:'翻译失败',lat:'延迟'},
+ en:{title:'AI Live Translator',scan:'Ask the other person to scan (no install)',copy:'Copy link',settings:'Settings',engineHelp:'Uses free translation by default (Google→MyMemory). Paste your own OpenAI key for better quality; stored only in this browser.',voice:'Voice',ttsLabel:"Speak the other person's translation",save:'Save',close:'Close',start:'🎤 Tap to speak English',stop:'⏹ Stop',lang:'I speak EN',wait:'Waiting for peer',conn:'Connected',solo:'Solo mode',err:'Connection failed',nosr:'Speech recognition unsupported; use Chrome / Safari',copied:'Copied',gloss:'Glossary (one per line: 中文=English, both directions)',nokey:'Link is missing its encryption key; rescan the QR code',tfail:'Translation failed',lat:'latency'}};
 const t=k=>T[lang][k]; let status='wait';
 function render(){document.documentElement.lang=lang;document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));
  $('#langBtn').textContent=t('lang')+' ⇄';$('#mic').textContent=listening?t('stop'):t('start');$('#mic').classList.toggle('on',listening);
- $('#st').textContent=t(status);$('#st').className='pill'+(status==='conn'?' ok':'');}
+ $('#st').textContent=t(status);$('#st').title=status;$('#st').className='pill'+(status==='conn'?' ok':'');}
 $('#langBtn').onclick=()=>{lang=other(lang);LS.lang=lang;if(listening){stopRec();startRec()}render()};
 // settings
-$('#cfgBtn').onclick=()=>{$('#key').value=LS.okey||'';$('#tts').checked=LS.tts!=='0';$('#cfg').style.display='flex'};
+$('#cfgBtn').onclick=()=>{$('#gl').value=LS.gloss||'';$('#key').value=LS.okey||'';$('#tts').checked=LS.tts!=='0';$('#cfg').style.display='flex'};
 $('#close').onclick=()=>$('#cfg').style.display='none';
-$('#save').onclick=()=>{LS.okey=$('#key').value.trim();LS.tts=$('#tts').checked?'1':'0';$('#cfg').style.display='none'};
-// translation: OpenAI (user key) -> Google gtx -> MyMemory
-const cache=new Map();
-async function translate(text,from,to){const k=from+to+text;if(cache.has(k))return cache.get(k);let r='';
- if(LS.okey){try{const res=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+LS.okey},
-  body:JSON.stringify({model:'gpt-4o-mini',temperature:0,messages:[{role:'system',content:`Translate the user's spoken ${from==='zh'?'Chinese':'English'} into natural spoken ${to==='zh'?'Simplified Chinese':'English'}. Output only the translation.`},{role:'user',content:text}]})});
-  const j=await res.json();r=j.choices?.[0]?.message?.content?.trim()||''}catch(e){}}
- if(!r){try{const j=await (await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${BCP[from]}&tl=${BCP[to]}&dt=t&q=${encodeURIComponent(text)}`)).json();r=j[0].map(x=>x[0]).join('')}catch(e){}}
- if(!r){try{const j=await (await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${BCP[from]}|${BCP[to]}`)).json();r=j.responseData?.translatedText||''}catch(e){}}
- if(r)cache.set(k,r);return r||'[translation failed]';}
+$('#save').onclick=()=>{LS.gloss=$('#gl').value;cache.clear();LS.okey=$('#key').value.trim();LS.tts=$('#tts').checked?'1':'0';$('#cfg').style.display='none'};
+// glossary: lines "中文=English"; applied both directions
+function gloss(from){return (LS.gloss||'').split('\n').map(l=>l.split('=').map(x=>x.trim())).filter(x=>x.length==2&&x[0]&&x[1]).map(([zh,en])=>from==='zh'?[zh,en]:[en,zh])}
+function applyGloss(text,from){for(const [a,b] of gloss(from).sort((x,y)=>y[0].length-x[0].length)){text=from==='en'?text.replace(new RegExp('\\b'+a.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','gi'),b):text.split(a).join(b)}return text}
+// translation: OpenAI (user key) -> Google gtx -> MyMemory, each with timeout + retry/backoff
+const cache=new Map(),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function fx(url,opt={}){const c=new AbortController(),tm=setTimeout(()=>c.abort(),6000);try{const r=await fetch(url,{...opt,signal:c.signal});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()}catch(e){throw new Error(e.name==='AbortError'?'timeout':e.message)}finally{clearTimeout(tm)}}
+const engines=[
+ ['OpenAI',async(text,from,to)=>{if(!LS.okey)return null;const g=gloss(from).map(([a,b])=>a+' => '+b).join('; ');
+  const j=await fx('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+LS.okey},body:JSON.stringify({model:'gpt-4o-mini',temperature:0,messages:[{role:'system',content:`Translate the user's spoken ${from==='zh'?'Chinese':'English'} into natural spoken ${to==='zh'?'Simplified Chinese':'English'}. Output only the translation.`+(g?` Always use these term translations: ${g}.`:'')},{role:'user',content:text}]})});
+  return j.choices?.[0]?.message?.content?.trim()}],
+ ['Google',async(text,from,to)=>{const j=await fx(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${BCP[from]}&tl=${BCP[to]}&dt=t&q=${encodeURIComponent(applyGloss(text,from))}`);return j[0].map(x=>x[0]).join('')}],
+ ['MyMemory',async(text,from,to)=>{const j=await fx(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(applyGloss(text,from))}&langpair=${BCP[from]}|${BCP[to]}`);if(j.responseStatus!=200||/MYMEMORY WARNING/.test(j.responseData?.translatedText))throw new Error(j.responseDetails||'quota');return j.responseData.translatedText}]];
+const lastErr={};
+async function translate(text,from,to,tries=2){const k=from+to+text;if(cache.has(k))return cache.get(k);const errs=[];
+ for(const [name,fn] of engines){if(lastErr[name]>Date.now())continue;
+  for(let i=0;i<tries;i++){try{const r=await fn(text,from,to);if(r==null)break;if(r){cache.set(k,r);return r}}catch(e){errs.push(name+': '+e.message);if(/429|quota/.test(e.message)){lastErr[name]=Date.now()+30000;break}if(i+1<tries)await sleep(400*3**i)}}}
+ const err=new Error(errs.join(' · ')||'no engine');err.tfail=true;throw err}
 // subtitles
 const bubbles={};
-function show(id,who,orig,trans,interim){let b=bubbles[id];if(!b){b=bubbles[id]=document.createElement('div');b.innerHTML='<div class="o"></div><div class="t"></div>';$('#log').appendChild(b)}
- b.className='msg'+(who==='me'?' me':'')+(interim?' interim':'');b.querySelector('.o').textContent=orig;b.querySelector('.t').textContent=trans||'…';$('#log').scrollTop=1e9;}
+function show(id,who,orig,trans,interim,extra={}){let b=bubbles[id];if(!b){b=bubbles[id]=document.createElement('div');b.innerHTML='<div class="o"></div><div class="t"></div>';$('#log').appendChild(b)}
+ b.className='msg'+(who==='me'?' me':'')+(interim?' interim':'');b.querySelector('.o').textContent=orig;b.querySelector('.t').textContent=extra.err?t('tfail')+' — '+extra.err:(trans||'…');b.classList.toggle('err',!!extra.err);b.t0=extra.t0||b.t0;b.dataset.when=b.dataset.when||new Date().toLocaleTimeString();b.who=who;
+ if(extra.lat!=null){let l=b.querySelector('.lat');if(!l){l=document.createElement('div');l.className='lat';b.appendChild(l)}l.textContent='⏱ '+t('lat')+' '+(extra.lat/1000).toFixed(2)+'s'}$('#log').scrollTop=1e9;}
 // TTS: only confirmed text is spoken
 let speaking=false;
 function speak(text,l){if(LS.tts==='0'||!window.speechSynthesis)return;const u=new SpeechSynthesisUtterance(text);u.lang=BCP[l];
  u.onstart=()=>{speaking=true;if(listening)try{rec.abort()}catch(e){}};u.onend=u.onerror=()=>{speaking=false;if(listening)try{rec.start()}catch(e){}};speechSynthesis.speak(u);}
-// sync: WebRTC (PeerJS) when it connects, else ntfy.sh relay (works behind strict NATs)
+// sync: WebRTC (PeerJS, DTLS-encrypted) when it connects, else ntfy.sh relay with AES-GCM end-to-end encryption (key only in URL #fragment, never sent to any server)
 const me=Math.random().toString(36).slice(2,10);const roomId=room||('aitr-'+Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,8));
-let conn=null,relayPeer=false,lastRelayInterim=0;const seen=new Set();
+const b64u={enc:u=>btoa(String.fromCharCode(...new Uint8Array(u))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),dec:s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))};
+let keyStr=isHost?null:new URLSearchParams(location.hash.slice(1)).get('k'),key=null;
+const keyReady=(async()=>{if(isHost){key=await crypto.subtle.generateKey({name:'AES-GCM',length:128},true,['encrypt','decrypt']);keyStr=b64u.enc(await crypto.subtle.exportKey('raw',key))}
+ else if(keyStr)key=await crypto.subtle.importKey('raw',b64u.dec(keyStr),'AES-GCM',false,['encrypt','decrypt'])})();
+async function seal(o){const iv=crypto.getRandomValues(new Uint8Array(12));return JSON.stringify({iv:b64u.enc(iv),c:b64u.enc(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(o))))})}
+async function open_(s){const o=JSON.parse(s);return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64u.dec(o.iv)},key,b64u.dec(o.c))))}
+let conn=null,relayPeer=false,lastRelayInterim=0,clockOff=0;const seen=new Set();
 const rtcOpen=()=>conn&&conn.open;
+async function relay(m){if(!key)return;fetch('https://ntfy.sh/'+roomId,{method:'POST',body:await seal({...m,from:me})}).catch(()=>{})}
 function send(m){if(rtcOpen())return conn.send(m);if(!relayPeer&&m.type!=='hello')return;
- if(m.type==='interim'){const n=Date.now();if(n-lastRelayInterim<1500)return;lastRelayInterim=n}
- fetch('https://ntfy.sh/'+roomId,{method:'POST',body:JSON.stringify({...m,from:me})}).catch(()=>{})}
+ if(m.type==='interim'){const n=Date.now();if(n-lastRelayInterim<1500)return;lastRelayInterim=n}relay(m)}
 function setConn(){status='conn';render();$('#share').style.display='none'}
-function onData(m){if(m.type==='hello'){relayPeer=true;setConn();if(!m.ack)send({type:'hello',ack:1});return}
- if(m.type==='final'){if(seen.has(m.id))return;seen.add(m.id);show(m.id,'them',m.orig,m.trans,false);speak(m.trans,m.to)}
+// hello/ack also estimates clock offset (peer clock - my clock) for the latency readout
+function onData(m){if(m.type==='hello'){if(!m.ack){relayPeer=relayPeer||!rtcOpen();setConn();send({type:'hello',ack:1,t1:m.t1,th:Date.now()})}
+  else{const t3=Date.now();if(m.t1){clockOff=m.th-(m.t1+t3)/2;send({type:'off',off:-clockOff})}relayPeer=relayPeer||!rtcOpen();setConn()}return}
+ if(m.type==='off'){clockOff=m.off;return}
+ if(m.type==='final'){if(seen.has(m.id))return;seen.add(m.id);show(m.id,'them',m.orig,m.trans,false,{err:m.err,t0:m.t0-clockOff,lat:m.t0?Date.now()-(m.t0-clockOff):null});if(!m.err)speak(m.trans,m.to)}
  else if(m.type==='interim'&&!seen.has(m.id))show(m.id,'them',m.orig,m.trans,true)}
-const es=new EventSource('https://ntfy.sh/'+roomId+'/sse');
-es.onopen=()=>{if(!isHost)fetch('https://ntfy.sh/'+roomId,{method:'POST',body:JSON.stringify({type:'hello',from:me})})};
-es.onmessage=e=>{try{const d=JSON.parse(e.data);if(d.event!=='message')return;const m=JSON.parse(d.message);if(m.from===me)return;onData(m)}catch(x){}};
-function bind(c){conn=c;c.on('open',setConn);c.on('data',onData);c.on('close',()=>{if(!relayPeer){status=isHost?'wait':'err';render()}})}
+keyReady.then(()=>{if(!key){status='nokey';render();return}
+ const es=new EventSource('https://ntfy.sh/'+roomId+'/sse');
+ es.onopen=()=>{if(!isHost)relay({type:'hello',t1:Date.now()})};
+ es.onmessage=async e=>{try{const d=JSON.parse(e.data);if(d.event!=='message')return;const m=await open_(d.message);if(m.from===me)return;onData(m)}catch(x){}};
+ if(isHost){const url=location.origin+location.pathname+'?room='+roomId+'#k='+keyStr;$('#url').textContent=url;const q=qrcode(0,'M');q.addData(url);q.make();$('#qr').innerHTML=q.createImgTag(4,8);$('#copy').onclick=()=>{navigator.clipboard?.writeText(url);$('#copy').textContent=t('copied')}}});
+function bind(c){conn=c;c.on('open',()=>{setConn();if(!isHost)c.send({type:'hello',t1:Date.now()})});c.on('data',onData);c.on('close',()=>{if(!relayPeer){status=isHost?'wait':'err';render()}})}
 let peer;
-if(isHost){const url=location.origin+location.pathname+'?room='+roomId;$('#url').textContent=url;const q=qrcode(0,'M');q.addData(url);q.make();$('#qr').innerHTML=q.createImgTag(5,8);$('#copy').onclick=()=>{navigator.clipboard?.writeText(url);$('#copy').textContent=t('copied')}}
 if(window.Peer){peer=isHost?new Peer(roomId):new Peer();
  peer.on('open',()=>{if(!isHost)bind(peer.connect(room,{reliable:true}))});
  peer.on('connection',c=>{if(rtcOpen())conn.close();bind(c)});peer.on('error',e=>console.warn('peer',e.type));}
+// export conversation as txt
+$('#expBtn').onclick=()=>{const lines=Object.values(bubbles).filter(b=>!b.classList.contains('interim')).map(b=>`[${b.dataset.when}] ${b.who==='me'?'Me':'Them'}: ${b.querySelector('.o').textContent}\n    → ${b.querySelector('.t').textContent}`);
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/plain'}));a.download='conversation-'+new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')+'.txt';document.body.appendChild(a);a.click();a.remove()};
 if(!isHost)$('#share').style.display='none';
 // speech recognition
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec,listening=false,seg=0,lastI=0,iTimer;
 function startRec(){if(!SR){alert(t('nosr'));return}rec=new SR();rec.lang=BCP[lang];rec.continuous=true;rec.interimResults=true;const from=lang,to=other(lang);
  rec.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i],txt=r[0].transcript.trim();if(!txt)continue;const id=(isHost?'h':'g')+seg;
-  if(r.isFinal){seg++;clearTimeout(iTimer);show(id,'me',txt,'',false);translate(txt,from,to).then(tr=>{show(id,'me',txt,tr,false);send({type:'final',id,orig:txt,trans:tr,to});if(!(conn&&conn.open))speak(tr,to)})}
-  else{show(id,'me',txt,'',true);send({type:'interim',id,orig:txt,trans:''});clearTimeout(iTimer);iTimer=setTimeout(()=>translate(txt,from,to).then(tr=>{if(bubbles[id]?.classList.contains('interim')){show(id,'me',txt,tr,true);send({type:'interim',id,orig:txt,trans:tr})}}),400)}}};
+  if(r.isFinal){seg++;clearTimeout(iTimer);const t0=Date.now();show(id,'me',txt,'',false);translate(txt,from,to).then(tr=>{show(id,'me',txt,tr,false,{lat:Date.now()-t0});send({type:'final',id,orig:txt,trans:tr,to,t0});if(!rtcOpen()&&!relayPeer)speak(tr,to)},e=>{show(id,'me',txt,'',false,{err:e.message});send({type:'final',id,orig:txt,trans:'',err:e.message,to,t0})})}
+  else{show(id,'me',txt,'',true);send({type:'interim',id,orig:txt,trans:''});clearTimeout(iTimer);iTimer=setTimeout(()=>translate(txt,from,to,1).then(tr=>{if(bubbles[id]?.classList.contains('interim')){show(id,'me',txt,tr,true);send({type:'interim',id,orig:txt,trans:tr})}}).catch(()=>{}),400)}}};
  rec.onend=()=>{if(listening&&!speaking)try{rec.start()}catch(e){}};rec.start();listening=true;render();}
 function stopRec(){listening=false;try{rec.stop()}catch(e){}render()}
 $('#mic').onclick=()=>listening?stopRec():startRec();
