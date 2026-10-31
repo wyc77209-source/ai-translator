@@ -97,7 +97,7 @@ function send(m){if(rtcOpen())return conn.send(m);if(!relayPeer&&m.type!=='hello
 function setConn(){status='conn';render();$('#share').style.display='none'}
 // hello/ack also estimates clock offset (peer clock - my clock) for the latency readout
 function onData(m){if(m.type==='hello'){if(!m.ack){relayPeer=relayPeer||!rtcOpen();setConn();send({type:'hello',ack:1,t1:m.t1,th:Date.now()})}
-  else{const t3=Date.now();if(m.t1){clockOff=m.th-(m.t1+t3)/2;send({type:'off',off:-clockOff})}relayPeer=relayPeer||!rtcOpen();setConn()}return}
+  else{const t3=Date.now();relayPeer=relayPeer||!rtcOpen();setConn();if(m.t1){clockOff=m.th-(m.t1+t3)/2;send({type:'off',off:-clockOff})}}return}
  if(m.type==='off'){clockOff=m.off;return}
  if(m.type==='final'){if(seen.has(m.id))return;seen.add(m.id);show(m.id,'them',m.orig,m.trans,false,{err:m.err,t0:m.t0-clockOff,lat:m.t0?Date.now()-(m.t0-clockOff):null});if(!m.err)speak(m.trans,m.to)}
  else if(m.type==='interim'&&!seen.has(m.id))show(m.id,'them',m.orig,m.trans,true)}
